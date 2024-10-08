@@ -63,17 +63,17 @@ void processorESSEDT(Mat img)
 
 	int width = img.cols;
 	int height = img.rows;
-	Vec2i** deltaS = new Vec2i * [height];
 	Vec2i* data = new Vec2i[height * width];
-	for (int i = 0; i < height; ++i) {
-		deltaS[i] = &data[i * width];
-	}
 	for (int i = 0; i < height; i++)
+	{
+		int ioff = i * width;
 		for (int j = 0; j < width; j++)
 		{
 
-			deltaS[i][j] = (img.at<Vec3b>(i, j)[0] > 20) ? Vec2i(0, 0) : Vec2i(width, height);
+			data[ioff + j] = (img.at<Vec3b>(i, j)[0] > 20) ? Vec2i(0, 0) : Vec2i(width, height);
 		}
+	}
+
 
 
 	// 第一个像素(左上)
@@ -106,48 +106,61 @@ void processorESSEDT(Mat img)
 			}
 			counter++;//查询次数自增
 		}
-		deltaS[0][0] = unit;
+		data[0] = unit;
+		//deltaS[0][0] = unit;
 	}
 	// 上到下扫描
 	for (int i = 0; i < height; i++)
+	{
+		int ioff = i * width;
 		for (int j = 0; j < width; j++)
 		{
-			if (deltaS[i][j] == Vec2i(0, 0)) continue;
-			Vec2i& cur = deltaS[i][j];
+			Vec2i& cur = data[ioff + j];
+			if (!cv::countNonZero(cur)) continue;
+			int length = lengthSquared(cur);
 			if (j != 0)
 			{
-				Vec2i tar = deltaS[i][j - 1] + Vec2i(-1, 0);
-				if (lengthSquared(tar) < lengthSquared(cur))
+				Vec2i tar = data[ioff + j - 1] + Vec2i(-1, 0);
+				int lengthTar = lengthSquared(tar);
+				if (lengthTar < length)
 				{
 					cur = tar;
+					length = lengthTar;
 				}
-
 			}
 			if (i != 0)
 			{
-				Vec2i tar = deltaS[i - 1][j] + Vec2i(0, -1);
-				if (lengthSquared(tar) < lengthSquared(cur))
+				Vec2i tar = data[ioff + j - width] + Vec2i(0, -1);
+				int lengthTar = lengthSquared(tar);
+				if (lengthTar < length)
 				{
 					cur = tar;
+					length = lengthTar;
 				}
 				if (j != 0)
 				{
-					tar = deltaS[i - 1][j - 1] + Vec2i(-1, -1);
-					if (lengthSquared(tar) < lengthSquared(cur))
+					tar = data[ioff + j - 1 - width] + Vec2i(-1, -1);
+					lengthTar = lengthSquared(tar);
+					if (lengthTar < length)
 					{
 						cur = tar;
+						length = lengthTar;
 					}
 				}
 				if (j != width - 1)
 				{
-					tar = deltaS[i - 1][j + 1] + Vec2i(1, -1);
-					if (lengthSquared(tar) < lengthSquared(cur))
+					tar = data[ioff + j + 1 - width] + Vec2i(1, -1);
+					lengthTar = lengthSquared(tar);
+					if (lengthTar < length)
 					{
 						cur = tar;
+						length = lengthTar;
 					}
 				}
 			}
 		}
+	}
+
 	// 第一个像素(右下)
 	{
 		bool flag = true;
@@ -182,57 +195,72 @@ void processorESSEDT(Mat img)
 			counter++;//查询次数自增
 		}
 		Vec2i tar = unit;// -new Vector2(width - 1, height - 1);
-		if (lengthSquared(tar) < lengthSquared(deltaS[height - 1][width - 1]))
-			deltaS[height - 1][width - 1] = tar;
+		int index = height * width - 1;
+		if (lengthSquared(tar) < lengthSquared(data[index]))
+			data[index] = tar;
 	}
 	// 下到上扫描
 	for (int i = height - 1; i >= 0; i--)
+	{
+		int ioff = i * width;
 		for (int j = width - 1; j >= 0; j--)
 		{
-			if (deltaS[i][j] == Vec2i(0, 0)) continue;
-			Vec2i& cur = deltaS[i][j];
+			Vec2i& cur = data[ioff + j];
+			if (!cv::countNonZero(cur)) continue;
+			int length = lengthSquared(cur);
+
 			if (j != width - 1)
 			{
-				Vec2i tar = deltaS[i][j + 1] + Vec2i(1, 0);
-				if (lengthSquared(tar) < lengthSquared(cur))
+				Vec2i tar = data[ioff + j + 1] + Vec2i(1, 0);
+				int lengthTar = lengthSquared(tar);
+				if (lengthTar < length)
 				{
 					cur = tar;
+					length = lengthTar;
 				}
 
 			}
 			if (i != height - 1)
 			{
-				Vec2i tar = deltaS[i + 1][j] + Vec2i(0, 1);
-				if (lengthSquared(tar) < lengthSquared(cur))
+				Vec2i tar = data[ioff + j + width] + Vec2i(0, 1);
+				int lengthTar = lengthSquared(tar);
+				if (lengthTar < length)
 				{
 					cur = tar;
+					length = lengthTar;
 				}
 				if (j != 0)
 				{
-					tar = deltaS[i + 1][j - 1] + Vec2i(-1, 1);
-					if (lengthSquared(tar) < lengthSquared(cur))
+					tar = data[ioff + j + width - 1] + Vec2i(-1, 1);
+					lengthTar = lengthSquared(tar);
+					if (lengthTar < length)
 					{
 						cur = tar;
+						length = lengthTar;
 					}
 				}
 				if (j != width - 1)
 				{
-					tar = deltaS[i + 1][j + 1] + Vec2i(1, 1);
-					if (lengthSquared(tar) < lengthSquared(cur))
+					tar = data[ioff + j + width + 1] + Vec2i(1, 1);
+					lengthTar = lengthSquared(tar);
+					if (lengthTar < length)
 					{
 						cur = tar;
+						length = lengthTar;
 					}
 				}
 			}
 		}
-	for (int j = 0; j < width; j++)
-		for (int i = 0; i < height; i++)
-		{
-			img.at<Vec3b>(i, j) = IntToColor(lengthSquared(deltaS[i][j]));//用像素来记录距离信息
-		}
+	}
+	for (int i = 0; i < height; i++)
+	{
+		int ioff = i * width;
+		for (int j = 0; j < width; j++)
+			img.at<Vec3b>(i, j) = IntToColor(lengthSquared(data[ioff + j]));//用像素来记录距离信息
+	}
 
 	delete[] data;  // 释放整个内存块
-	delete[] deltaS;  // 释放行指针数组
+	//delete[] deltaS;  // 释放行指针数组
 }
 void processorFractal(double angle, Vec3b& color)
 {
