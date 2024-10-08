@@ -234,11 +234,11 @@ void processorESSEDT(Mat img)
 	delete[] data;  // 释放整个内存块
 	delete[] deltaS;  // 释放行指针数组
 }
-void processorFractal(int j, int i, int width, int height, Vec3b& color)
+void processorFractal(double angle, Vec3b& color)
 {
 	int distSqr = color[0] + 255 * (color[1] + 255 * color[2]);//把像素信息转距离信息
 	Vec2d orig = Vec2d(-32 / 9.0, -2.0);//缩放中心
-	double angle = atan2(i - height * .5, j - width * .5) * 4;
+	//double angle = atan2(i - height * .5, j - width * .5) * 4;
 	Vec2d vec = Vec2d(cos(angle), sin(angle)) * 0.5;
 	angle *= 2;
 	vec -= Vec2d(cos(angle), sin(angle)) * 0.25;
@@ -247,6 +247,40 @@ void processorFractal(int j, int i, int width, int height, Vec3b& color)
 	vec *= 270;
 	color = fracImage.at<Vec3b>(clamp((int)vec[1], 0, 1079), clamp((int)vec[0], 0, 1919));
 }
+class PixelOperation_BlackWhite : public cv::ParallelLoopBody {
+public:
+	PixelOperation_BlackWhite(Mat& _img) : img(_img) {}
+
+	void operator()(const cv::Range& range) const {
+		for (int i = range.start; i < range.end; i++) {
+			for (int j = 0; j < img.cols; j++) {
+				processorBlackWhite(img.at<Vec3b>(i, j));
+			}
+			//std::cout << "Processed row " << i << std::endl;
+		}
+	}
+
+private:
+	Mat& img;
+};
+class PixelOperation_Fractal : public cv::ParallelLoopBody {
+public:
+	PixelOperation_Fractal(Mat& _img) : img(_img) {}
+
+	void operator()(const cv::Range& range) const {
+		int width = img.cols;
+		int height = range.size();
+		for (int i = range.start; i < range.end; i++) {
+			for (int j = 0; j < width; j++) {
+				processorFractal(atan2(i - height * .5, j - width * .5) * 4, img.at<Vec3b>(i, j));
+			}
+			//std::cout << "Processed row " << i << std::endl;
+		}
+	}
+
+private:
+	Mat& img;
+};
 int main(int argc, char* argv[])
 {
 	if (argc == 1)
@@ -276,7 +310,8 @@ int main(int argc, char* argv[])
 	}
 	std::cout << "开始，";
 	logCurrentTime();
-	std::cout << "请耐心等待处理，多于1000张时每处理100张会输出一次进度，否则多于10张时每10张输出一次进度\n";
+	std::cout << "请耐心等待处理\n";
+	//std::cout << "请耐心等待处理，多于1000张时每处理100张会输出一次进度，否则多于10张时每10张输出一次进度\n";
 	int counter = 0;
 	auto processor = [index, argc, &counter](char* charpath)
 		{
@@ -296,34 +331,28 @@ int main(int argc, char* argv[])
 				std::cin.get();
 				return 0;
 			case 1:
-				for (int i = 0; i < img.rows; i++)
-					for (int j = 0; j < img.cols; j++)
-					{
-						processorBlackWhite(img.at<Vec3b>(i, j));
-					}
+				parallel_for_(Range(0, img.rows), PixelOperation_BlackWhite(img));
+				//for (int i = 0; i < img.rows; i++)
+				//	for (int j = 0; j < img.cols; j++)
+				//	{
+				//		processorBlackWhite(img.at<Vec3b>(i, j));
+				//	}
 				break;
 			case 2:
 				processorESSEDT(img);
 				break;
 			case 3:
-				for (int i = 0; i < img.rows; i++)
-					for (int j = 0; j < img.cols; j++)
-					{
-						processorFractal(j, i, img.cols, img.rows, img.at<Vec3b>(i, j));
-					}
+				parallel_for_(Range(0, img.rows), PixelOperation_Fractal(img));
+				//for (int i = 0; i < img.rows; i++)
+				//	for (int j = 0; j < img.cols; j++)
+				//	{
+				//		processorFractal(j, i, img.cols, img.rows, img.at<Vec3b>(i, j));
+				//	}
 				break;
 			case 4:
-				for (int i = 0; i < img.rows; i++)
-					for (int j = 0; j < img.cols; j++)
-					{
-						processorBlackWhite(img.at<Vec3b>(i, j));
-					}
+				parallel_for_(Range(0, img.rows), PixelOperation_BlackWhite(img));
 				processorESSEDT(img);
-				for (int i = 0; i < img.rows; i++)
-					for (int j = 0; j < img.cols; j++)
-					{
-						processorFractal(j, i, img.cols, img.rows, img.at<Vec3b>(i, j));
-					}
+				parallel_for_(Range(0, img.rows), PixelOperation_Fractal(img));
 				break;
 			default:
 				break;
@@ -334,13 +363,13 @@ int main(int argc, char* argv[])
 			if (!exists(resultDir)) {
 				create_directories(resultDir);
 			}
-			if (argc > 10 && c % (argc > 1000 ? 100 : 10) == 0)
-			{
-				std::ostringstream ss;
-				ss << (c * 100.0 / argc) << "%\n";
-				std::string merged = ss.str();
-				std::cout << merged;
-			}
+			//if (argc > 10 && c % (argc > 1000 ? 100 : 10) == 0)
+			//{
+			//	std::ostringstream ss;
+			//	ss << (c * 100.0 / argc) << "%\n";
+			//	std::string merged = ss.str();
+			//	std::cout << merged;
+			//}
 			imwrite((resultDir / curpath.filename()).string(), img);
 
 			//std::ostringstream _ss;
