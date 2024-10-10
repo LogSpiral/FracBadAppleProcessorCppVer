@@ -29,13 +29,14 @@ Mat dataSet;
 Mat fracImage;
 Vec3b black = Vec3b(0, 0, 0);
 Vec3b white = Vec3b(255, 255, 255);
+uchar standard_BlackWhite;
 /*void processorTemplate(int i, int j, Vec3b& color, Mat img)
 {
 
 }*/
 void processorBlackWhite(Vec3b& color)
 {
-	color = (color[0] + color[1] + color[2]) > 255.0 ? white : black;
+	color = (color[0] / 3 + color[1] / 3 + color[2] / 3) > standard_BlackWhite ? white : black;
 	//auto orig = color;
 	//double value = color[0] / 255.0 + color[1] / 255.0 + color[2] / 255.0;
 	//uchar c = value > 0.33 ? 255 : 0;
@@ -269,7 +270,7 @@ public:
 
 	void operator()(const cv::Range& range) const {
 		int width = img.cols;
-		int height = range.size();
+		int height = img.rows;
 		for (int i = range.start; i < range.end; i++) {
 			for (int j = 0; j < width; j++) {
 				processorFractal(atan2(i - height * .5, j - width * .5) * 4, img.at<Vec3b>(i, j));
@@ -307,6 +308,13 @@ int main(int argc, char* argv[])
 		std::cin.get();
 		std::cin.get();
 		return 0;
+	}
+	int standard_BW = 0;
+	if (index == 1 || index == 4)
+	{
+		std::cout << "请输入黑白阈值(0-255)\n";
+		std::cin >> standard_BW;
+		standard_BlackWhite = (uchar)standard_BW;
 	}
 	std::cout << "开始，";
 	logCurrentTime();
@@ -384,6 +392,7 @@ int main(int argc, char* argv[])
 	std::copy(begin, end, std::back_inserter(data));
 
 	std::vector<std::thread> threads;
+	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < data.size(); ++i) {
 		threads.emplace_back(processor, data[i]);
 	}
@@ -391,6 +400,9 @@ int main(int argc, char* argv[])
 	for (auto& thread : threads) {
 		thread.join();
 	}
+	auto stop = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> duration = stop - start;
+	std::cout << "Function took " << duration.count() << " milliseconds." << std::endl;
 
 	std::cout << "处理成功，已处理" << counter << "个文件，请查看它们自己目录下的Result_Cpp文件夹\n";
 	std::cout << "结束，";
